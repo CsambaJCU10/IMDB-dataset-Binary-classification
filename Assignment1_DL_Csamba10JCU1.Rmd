@@ -1,0 +1,92 @@
+---
+title: 'IMDB dataset: a binary classification example'
+author: "Choe"
+date: "February 21, 2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+## The IMDB dataset
+
+
+```{r, results='hide'}
+library(keras)
+
+imdb <- dataset_imdb(num_words = 10000)
+c(c(train_data, train_labels), c(test_data, test_labels)) %<-% imdb
+```
+
+The argument `num_words = 10000` means that we will only keep the top 10,000 most frequently occurring words in the training data. Rare words will be discarded. This allows us to work with vector data of manageable size.
+
+The variables `train_data` and `test_data` are lists of reviews, each review being a list of word indices (encoding a sequence of words). `train_labels` and `test_labels` are lists of 0s and 1s, where 0 stands for "negative" and 1 stands for "positive":
+
+```{r}
+str(train_data[[1]])
+```
+
+```{r}
+train_labels[[1]]
+```
+
+Since we restricted ourselves to the top 10,000 most frequent words, no word index will exceed 10,000:
+
+```{r}
+max(sapply(train_data, max))
+```
+
+
+## Preparing the data
+
+
+
+
+```{r}
+vectorize_sequences <- function(sequences, dimension = 10000) {
+  # Create an all-zero matrix of shape (len(sequences), dimension)
+  results <- matrix(0, nrow = length(sequences), ncol = dimension)
+  for (i in 1:length(sequences))
+    # Sets specific indices of results[i] to 1s
+    results[i, sequences[[i]]] <- 1
+  results
+}
+
+# Our vectorized training data
+x_train <- vectorize_sequences(train_data)
+# Our vectorized test data
+x_test <- vectorize_sequences(test_data)
+
+# Our vectorized labels
+y_train <- as.numeric(train_labels)
+y_test <- as.numeric(test_labels)
+```
+
+## Building our network
+```{r}
+library(keras)
+
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 16, activation = "relu", kernel_regularizer = regularizer_l2(0.0001), input_shape = c(10000)) %>%
+  layer_dropout(0.6) %>%
+  layer_dense(units = 16, kernel_regularizer = regularizer_l2(0.0001), activation = "relu") %>%
+  layer_dropout(0.6) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
+)
+
+model %>% fit(x_train, y_train, epochs = 4, batch_size = 512)
+results <- model %>% evaluate(x_test, y_test)
+```
+
+
+```{r}
+results
+```
